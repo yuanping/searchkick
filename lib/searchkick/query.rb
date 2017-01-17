@@ -264,6 +264,7 @@ module Searchkick
           end
 
           fields.each do |field|
+            queries_to_add = []
             qs = []
 
             factor = boost_fields[field] || 1
@@ -290,7 +291,7 @@ module Searchkick
               ]
             elsif field.end_with?(".exact")
               f = field.split(".")[0..-2].join(".")
-              queries << {match: {f => shared_options.merge(analyzer: "keyword")}}
+              queries_to_add << {match: {f => shared_options.merge(analyzer: "keyword")}}
             else
               analyzer = field =~ /\.word_(start|middle|end)\z/ ? "searchkick_word_search" : "searchkick_autocomplete_search"
               qs << shared_options.merge(analyzer: analyzer)
@@ -301,7 +302,6 @@ module Searchkick
             end
 
             q2 = qs.map { |q| {match_type => {field => q}} }
-            queries_to_add = []
 
             # boost exact matches more
             if field =~ /\.word_(start|middle|end)\z/ && searchkick_options[:word] != false
