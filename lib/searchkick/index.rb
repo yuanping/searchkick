@@ -15,7 +15,13 @@ module Searchkick
     end
 
     def delete
-      client.indices.delete index: name
+      if !Searchkick.server_below?("6.0.0-alpha1") && alias_exists?
+        # can't call delete directly on aliases in ES 6
+        indices = client.indices.get_alias(name: name).keys
+        client.indices.delete index: indices
+      else
+        client.indices.delete index: name
+      end
     end
 
     def exists?
@@ -328,12 +334,16 @@ module Searchkick
       Searchkick.client
     end
 
-    def document_type(record)
+    def record_document_type(record)
       if record.respond_to?(:search_document_type)
         record.search_document_type
       else
         klass_document_type(record.class)
       end
+    end
+
+    def document_type(record)
+      klass_document_type(record.class.searchkick_klass)
     end
 
     def search_id(record)
@@ -378,6 +388,10 @@ module Searchkick
             end
           end
         end
+      end
+
+      if !source.key?("type") && record.class != record.class.searchkick_klass
+        source["type"] = record_document_type(record)
       end
 
       cast_big_decimal(source)

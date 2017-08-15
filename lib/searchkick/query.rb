@@ -443,8 +443,13 @@ module Searchkick
         # indices_boost
         set_boost_by_indices(payload)
 
+        where = (options[:where] || {}).dup
+        if options[:type] || (klass != searchkick_klass && searchkick_index)
+          where[:type] = [options[:type] || klass].flatten.map { |v| searchkick_index.klass_document_type(v) }
+        end
+
         # filters
-        filters = where_filters(options[:where])
+        filters = where_filters(where)
         set_filters(payload, filters) if filters.any?
 
         # aggregations
@@ -471,10 +476,6 @@ module Searchkick
           end
         elsif load
           payload[:_source] = false
-        end
-
-        if options[:type] || (klass != searchkick_klass && searchkick_index)
-          @type = [options[:type] || klass].flatten.map { |v| searchkick_index.klass_document_type(v) }
         end
 
         # routing

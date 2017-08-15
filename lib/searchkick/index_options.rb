@@ -162,11 +162,6 @@ module Searchkick
           settings[:similarity] = {default: {type: options[:similarity]}}
         end
 
-        unless below60
-          settings[:mapping] ||= {}
-          settings[:mapping][:single_type] = false
-        end
-
         settings.deep_merge!(options[:settings] || {})
 
         # synonyms
