@@ -1,8 +1,71 @@
-## 2.4.1 [unreleased]
+## 3.1.1 [unreleased]
 
+- Added per-field misspellings
+- Made `exclude` option work with match all
+
+## 3.1.0
+
+- Added `:inline` as alias for `true` for `callbacks` and `mode` options
+- Friendlier error message for bad mapping with partial matches
+- Warn when records in search index do not exist in database
+- Easier merging for `merge_mapping`
+- Fixed `with_hit` and `with_highlights` when records in search index do not exist in database
+- Fixed error with highlights and match all
+
+## 3.0.3
+
+- Added support for pagination with `body` option
+- Added `boost_by_recency` option
+- Fixed "Model Search Data" output for `debug` option
+- Fixed `reindex_status` error
+- Fixed error with optional operators in Ruby regexp
+- Fixed deprecation warnings for Elasticsearch 6.2+
+
+## 3.0.2
+
+- Added support for Korean and Vietnamese
+- Fixed `Unsupported argument type: Symbol` for async partial reindex
+- Fixed infinite recursion with multi search and misspellings below
+- Do not raise an error when `id` is indexed
+
+## 3.0.1
+
+- Added `scope` option for partial reindex
+- Added support for Japanese, Polish, and Ukrainian
+
+## 3.0.0
+
+- Added support for Chinese
+- No longer requires fields to query for Elasticsearch 6
+- Results can be marshaled by default (unless using `highlight` option)
+
+Breaking changes
+
+- Removed support for Elasticsearch 2
+- Removed support for ActiveRecord < 4.2 and Mongoid < 5
+- Types are no longer used
+- The `_all` field is disabled by default in Elasticsearch 5
+- Conversions are not stemmed by default
+- An `ArgumentError` is raised instead of a warning when options are incompatible with the `body` option
+- Removed `log` option from `boost_by`
+- Removed `Model.enable_search_callbacks`, `Model.disable_search_callbacks`, and `Model.search_callbacks?`
+- Removed `reindex_async` method, as `reindex` now defaults to callbacks mode specified on the model
+- Removed `async` option from `record.reindex`
+- Removed `search_hit` method - use `with_hit` instead
+- Removed `each_with_hit` - use `with_hit.each` instead
+- Removed `with_details` - use `with_highlights` instead
+- Bumped default `limit` to 10,000
+
+## 2.5.0
+
+- Try requests 3 times before raising error
 - Better exception when trying to access results for failed multi-search query
+- More efficient aggregations with `where` clauses
 - Added support for `faraday_middleware-aws-sigv4`
 - Added `credentials` option to `aws_credentials`
+- Added `modifier` option to `boost_by`
+- Added `scope_results` option
+- Added `factor` option to `boost_by_distance`
 
 ## 2.4.0
 

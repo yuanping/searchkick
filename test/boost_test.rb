@@ -40,9 +40,9 @@ class BoostTest < Minitest::Test
     assert_order "speaker", ["Speaker D", "Speaker C", "Speaker B", "Speaker A"], {conversions: "conversions_a", conversions_term: "speaker_1"}, Speaker
   end
 
-  def test_conversions_stemmed
+  def test_conversions_case
     store [
-      {name: "Tomato A", conversions: {"tomato" => 1, "tomatos" => 1, "Tomatoes" => 1}},
+      {name: "Tomato A", conversions: {"tomato" => 1, "TOMATO" => 1, "tOmAtO" => 1}},
       {name: "Tomato B", conversions: {"tomato" => 2}}
     ]
     assert_order "tomato", ["Tomato A", "Tomato B"]
@@ -122,13 +122,7 @@ class BoostTest < Minitest::Test
       {name: "Tomato B", orders_count: 10},
     ]
 
-    if elasticsearch_below50?
-      assert_raises(ArgumentError) do
-        assert_order "tomato", ["Tomato A", "Tomato B"], boost_by: {orders_count: {missing: 100}}
-      end
-    else
-      assert_order "tomato", ["Tomato A", "Tomato B"], boost_by: {orders_count: {missing: 100}}
-    end
+    assert_order "tomato", ["Tomato A", "Tomato B"], boost_by: {orders_count: {missing: 100}}
   end
 
   def test_boost_by_boost_mode_multiply
@@ -153,6 +147,24 @@ class BoostTest < Minitest::Test
     assert_first "tomato", "Tomato B", boost_where: {user_ids: {value: 2, factor: 10}}
     assert_first "tomato", "Tomato B", boost_where: {user_ids: {value: [1, 4], factor: 10}}
     assert_order "tomato", ["Tomato C", "Tomato B", "Tomato A"], boost_where: {user_ids: [{value: 1, factor: 10}, {value: 3, factor: 20}]}
+  end
+
+  def test_boost_by_recency
+    store [
+      {name: "Article 1", created_at: 2.days.ago},
+      {name: "Article 2", created_at: 1.day.ago},
+      {name: "Article 3", created_at: Time.now}
+    ]
+    assert_order "article", ["Article 3", "Article 2", "Article 1"], boost_by_recency: {created_at: {scale: "7d", decay: 0.5}}
+  end
+
+  def test_boost_by_recency_origin
+    store [
+      {name: "Article 1", created_at: 2.days.ago},
+      {name: "Article 2", created_at: 1.day.ago},
+      {name: "Article 3", created_at: Time.now}
+    ]
+    assert_order "article", ["Article 1", "Article 2", "Article 3"], boost_by_recency: {created_at: {origin: 2.days.ago, scale: "7d", decay: 0.5}}
   end
 
   def test_boost_by_distance
@@ -189,6 +201,17 @@ class BoostTest < Minitest::Test
       {name: "San Marino", latitude: 43.9333, longitude: 12.4667}
     ]
     assert_order "san", ["San Francisco", "San Antonio", "San Marino"], boost_by_distance: {location: {origin: {lat: 37, lon: -122}, scale: "1000mi"}}
+  end
+
+  def test_boost_by_distance_v2_factor
+    store [
+      {name: "San Francisco", latitude: 37.7833, longitude: -122.4167, found_rate: 0.1},
+      {name: "San Antonio", latitude: 29.4167, longitude: -98.5000, found_rate: 0.99},
+      {name: "San Marino", latitude: 43.9333, longitude: 12.4667, found_rate: 0.2}
+    ]
+
+    assert_order "san", ["San Antonio","San Francisco", "San Marino"], boost_by: {found_rate: {factor: 100}}, boost_by_distance: {location: {origin: [37, -122], scale: "1000mi"}}
+    assert_order "san", ["San Francisco", "San Antonio", "San Marino"], boost_by: {found_rate: {factor: 100}}, boost_by_distance: {location: {origin: [37, -122], scale: "1000mi", factor: 100}}
   end
 
   def test_boost_by_indices

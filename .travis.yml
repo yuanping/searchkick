@@ -1,6 +1,6 @@
 sudo: false
 language: ruby
-rvm: 2.4.2
+rvm: 2.5.1
 services:
   - mongodb
   - redis-server
@@ -15,27 +15,19 @@ notifications:
     on_failure: change
 gemfile:
   - Gemfile
+  - test/gemfiles/activerecord51.gemfile
   - test/gemfiles/activerecord50.gemfile
   - test/gemfiles/activerecord42.gemfile
   - test/gemfiles/mongoid5.gemfile
   - test/gemfiles/mongoid6.gemfile
 env:
-  - ELASTICSEARCH_VERSION=6.1.1
+  - ELASTICSEARCH_VERSION=6.3.1
 jdk: oraclejdk8
 matrix:
   include:
     - gemfile: Gemfile
-      env: ELASTICSEARCH_VERSION=2.0.0
-      jdk: oraclejdk7
-    - gemfile: Gemfile
-      env: ELASTICSEARCH_VERSION=2.4.6
-      jdk: oraclejdk7
-    - gemfile: Gemfile
       env: ELASTICSEARCH_VERSION=5.0.1
-      jdk: oraclejdk8
     - gemfile: Gemfile
-      env: ELASTICSEARCH_VERSION=5.6.4
-      jdk: oraclejdk8
+      env: ELASTICSEARCH_VERSION=5.6.10
     - gemfile: Gemfile
       env: ELASTICSEARCH_VERSION=6.0.0
-      jdk: oraclejdk8

@@ -6,7 +6,7 @@ require "active_support/notifications"
 
 ActiveSupport::Notifications.subscribe "request.searchkick" do |*args|
   event = ActiveSupport::Notifications::Event.new(*args)
-  p event.duration
+  puts "Import: #{event.duration.round}ms"
 end
 
 ActiveJob::Base.queue_adapter = :sidekiq
@@ -33,55 +33,57 @@ class Product < ActiveRecord::Base
   end
 end
 
-total_docs = 100000
+if ENV["SETUP"]
+  total_docs = 100000
 
-# ActiveRecord::Migration.create_table :products, force: :cascade do |t|
-#   t.string :name
-#   t.string :color
-#   t.integer :store_id
-# end
+  ActiveRecord::Migration.create_table :products, force: :cascade do |t|
+    t.string :name
+    t.string :color
+    t.integer :store_id
+  end
 
-# Product.import ["name", "color", "store_id"], total_docs.times.map { |i| ["Product #{i}", ["red", "blue"].sample, rand(10)] }
+  Product.import ["name", "color", "store_id"], total_docs.times.map { |i| ["Product #{i}", ["red", "blue"].sample, rand(10)] }
 
-puts "Imported"
+  puts "Imported"
+end
 
 result = nil
 report = nil
 stats = nil
 
-# p GetProcessMem.new.mb
-
 Product.searchkick_index.delete rescue nil
+
+GC.start
+GC.disable
+start_mem = GetProcessMem.new.mb
 
 time =
   Benchmark.realtime do
     # result = RubyProf.profile do
     # report = MemoryProfiler.report do
     # stats = AllocationStats.trace do
-    reindex = Product.reindex(async: true)
-    p reindex
+    reindex = Product.reindex #(async: true)
+    # p reindex
     # end
 
-    60.times do |i|
-      if reindex.is_a?(Hash)
-        docs = Searchkick::Index.new(reindex[:index_name]).total_docs
-      else
-        docs = Product.searchkick_index.total_docs
-      end
-      puts "#{i}: #{docs}"
-      if docs == total_docs
-        break
-      end
-      p Searchkick.reindex_status(reindex[:index_name]) if reindex.is_a?(Hash)
-      sleep(1)
-      # Product.searchkick_index.refresh
-    end
+    # 60.times do |i|
+    #   if reindex.is_a?(Hash)
+    #     docs = Searchkick::Index.new(reindex[:index_name]).total_docs
+    #   else
+    #     docs = Product.searchkick_index.total_docs
+    #   end
+    #   puts "#{i}: #{docs}"
+    #   if docs == total_docs
+    #     break
+    #   end
+    #   p Searchkick.reindex_status(reindex[:index_name]) if reindex.is_a?(Hash)
+    #   sleep(1)
+    #   # Product.searchkick_index.refresh
+    # end
   end
 
-# p GetProcessMem.new.mb
-
-puts time.round(1)
-
+puts
+puts "Time: #{time.round(1)}s"
 
 if result
   printer = RubyProf::GraphPrinter.new(result)

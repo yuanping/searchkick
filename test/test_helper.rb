@@ -38,18 +38,6 @@ end
 
 ActiveSupport::LogSubscriber.logger = ActiveSupport::Logger.new(STDOUT) if ENV["NOTIFICATIONS"]
 
-def elasticsearch_below50?
-  Searchkick.server_below?("5.0.0-alpha1")
-end
-
-def elasticsearch_below60?
-  Searchkick.server_below?("6.0.0-alpha1")
-end
-
-def elasticsearch_below22?
-  Searchkick.server_below?("2.2.0")
-end
-
 def nobrainer?
   defined?(NoBrainer)
 end
@@ -121,6 +109,12 @@ if defined?(Mongoid)
 
     field :name
   end
+
+  class Song
+    include Mongoid::Document
+
+    field :name
+  end
 elsif defined?(NoBrainer)
   NoBrainer.configure do |config|
     config.app_name = :searchkick
@@ -132,7 +126,7 @@ elsif defined?(NoBrainer)
     include NoBrainer::Document::Timestamps
 
     field :id,           type: Object
-    field :name,         type: String
+    field :name,         type: Text
     field :in_stock,     type: Boolean
     field :backordered,  type: Boolean
     field :orders_count, type: Integer
@@ -186,6 +180,13 @@ elsif defined?(NoBrainer)
     include NoBrainer::Document
 
     field :id,   type: String
+    field :name, type: String
+  end
+
+  class Song
+    include NoBrainer::Document
+
+    field :id,   type: Object
     field :name, type: String
   end
 elsif defined?(Cequel)
@@ -276,7 +277,14 @@ elsif defined?(Cequel)
     column :name, :text
   end
 
-  [Product, Store, Region, Speaker, Animal].each(&:synchronize_schema)
+  class Song
+    include Cequel::Record
+
+    key :id, :timeuuid, auto: true
+    column :name, :text
+  end
+
+  [Product, Store, Region, Speaker, Animal, Sku, Song].each(&:synchronize_schema)
 else
   require "active_record"
 
@@ -367,6 +375,10 @@ else
     t.string :name
   end
 
+  ActiveRecord::Migration.create_table :songs do |t|
+    t.string :name
+  end
+
   class Product < ActiveRecord::Base
     belongs_to :store
   end
@@ -392,6 +404,9 @@ else
 
   class Sku < ActiveRecord::Base
   end
+
+  class Song < ActiveRecord::Base
+  end
 end
 
 class Product
@@ -399,7 +414,7 @@ class Product
     synonyms: [
       ["clorox", "bleach"],
       ["scallion", "greenonion"],
-      ["saranwrap", "plasticwrap"],
+      ["saran wrap", "plastic wrap"],
       ["qtip", "cottonswab"],
       ["burger", "hamburger"],
       ["bandaid", "bandag"],
@@ -417,7 +432,6 @@ class Product
     word_middle: [:name],
     word_end: [:name],
     highlight: [:name],
-    searchable: [:name, :color],
     filterable: [:name, :color, :description],
     similarity: "BM25",
     match: ENV["MATCH"] ? ENV["MATCH"].to_sym : nil
@@ -425,7 +439,7 @@ class Product
   attr_accessor :conversions, :user_ids, :aisle, :details
 
   def search_data
-    serializable_hash.except("id").merge(
+    serializable_hash.except("id", "_id").merge(
       conversions: conversions,
       user_ids: user_ids,
       location: {lat: latitude, lon: longitude},
@@ -448,13 +462,12 @@ end
 
 class Store
   searchkick \
-    default_fields: elasticsearch_below60? ? nil : [:name],
     routing: true,
     merge_mappings: true,
     mappings: {
       store: {
         properties: {
-          name: elasticsearch_below50? ? {type: "string", analyzer: "keyword"} : {type: "keyword"}
+          name: {type: "keyword"}
         }
       }
     }
@@ -470,7 +483,6 @@ end
 
 class Region
   searchkick \
-    default_fields: elasticsearch_below60? ? nil : [:name],
     geo_shape: {
       territory: {tree: "quadtree", precision: "10km"}
     }
@@ -488,13 +500,12 @@ end
 
 class Speaker
   searchkick \
-    default_fields: elasticsearch_below60? ? nil : [:name],
     conversions: ["conversions_a", "conversions_b"]
 
   attr_accessor :conversions_a, :conversions_b, :aisle
 
   def search_data
-    serializable_hash.except("id").merge(
+    serializable_hash.except("id", "_id").merge(
       conversions_a: conversions_a,
       conversions_b: conversions_b,
       aisle: aisle
@@ -504,8 +515,7 @@ end
 
 class Animal
   searchkick \
-    default_fields: elasticsearch_below60? ? nil : [:name],
-    inheritance: !elasticsearch_below60?,
+    inheritance: true,
     text_start: [:name],
     suggest: [:name],
     index_name: -> { "#{name.tableize}-#{Date.today.year}#{Searchkick.index_suffix}" },
@@ -515,6 +525,10 @@ end
 
 class Sku
   searchkick callbacks: defined?(ActiveJob) ? :async : true
+end
+
+class Song
+  searchkick
 end
 
 Product.searchkick_index.delete if Product.searchkick_index.exists?
@@ -533,7 +547,6 @@ class Minitest::Test
     Store.destroy_all
     Animal.destroy_all
     Speaker.destroy_all
-    Sku.destroy_all
   end
 
   protected
@@ -564,5 +577,25 @@ class Minitest::Test
 
   def assert_first(term, expected, options = {}, klass = Product)
     assert_equal expected, klass.search(term, options).map(&:name).first
+  end
+
+  def assert_misspellings(term, expected, misspellings = {}, klass = Product)
+    options = {
+      fields: [:name, :color],
+      misspellings: misspellings
+    }
+    assert_search(term, expected, options, klass)
+  end
+
+  def with_options(klass, options)
+    previous_options = klass.searchkick_options.dup
+    begin
+      klass.searchkick_options.merge!(options)
+      klass.reindex
+      yield
+    ensure
+      klass.searchkick_options.clear
+      klass.searchkick_options.merge!(previous_options)
+    end
   end
 end
